@@ -1,0 +1,67 @@
+resources:
+  jobs:
+    pdf_processing_git:
+      name: pdf_processing_git
+      tasks:
+        - task_key: pdf_to_txt
+          spark_python_task:
+            python_file: src/pipelines/pdf_processing/pdf_to_text_with_pymupdf4llm.py
+            parameters:
+              - --source_path
+              - "{{job.parameters.base_path}}/pdf/source={{job.parameters.sourc\
+                e_name}}/"
+              - --target_path
+              - "{{job.parameters.base_path}}/txt/source={{job.parameters.sourc\
+                e_name}}/"
+            source: GIT
+          environment_key: dev
+        - task_key: txt_to_columns
+          depends_on:
+            - task_key: pdf_to_txt
+          spark_python_task:
+            python_file: src/pipelines/pdf_processing/text_to_columns.py
+            parameters:
+              - --source_path
+              - "{{job.parameters.base_path}}/txt/source={{job.parameters.sourc\
+                e_name}}/"
+              - --target_table
+              - "{{job.parameters.loads_table}}"
+            source: GIT
+          environment_key: dev
+        - task_key: txt_to_columns_validator
+          depends_on:
+            - task_key: txt_to_columns
+          spark_python_task:
+            python_file: src/pipelines/pdf_processing/text_to_columns_validator.py
+            parameters:
+              - --source_table
+              - "{{job.parameters.loads_table}}"
+            source: GIT
+          environment_key: dev
+      git_source:
+        git_url: https://github.com/danielamarilesglobant/pdf_processing.git
+        git_provider: gitHub
+        git_branch: dev
+      queue:
+        enabled: true
+      parameters:
+        - name: base_path
+          default: /Volumes/logistics/bronze/raw
+        - name: source_name
+          default: UTB
+        - name: loads_table
+          default: logistics.bronze.truckr_loads
+      environments:
+        - environment_key: Default
+          spec:
+            client: "3"
+            dependencies:
+              - PyMuPDF
+              - pymupdf4llm
+        - environment_key: dev
+          spec:
+            client: "3"
+            dependencies:
+              - PyMuPDF==1.26.4
+              - pymupdf4llm==0.0.27
+      performance_target: PERFORMANCE_OPTIMIZED
